@@ -1,0 +1,317 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NHCCI Inflation Factor</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+      --card-width: min(420px, 90vw);
+      --accent: #2d7b2d;
+      --accent-dark: #215821;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f5f5f5;
+      color: #1f2933;
+    }
+
+    .card {
+      width: var(--card-width);
+      border-radius: 12px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+      background: white;
+      overflow: hidden;
+    }
+
+    .card__header {
+      background: var(--accent);
+      color: white;
+      text-align: center;
+      padding: 1.4rem 1rem;
+      font-size: 1.4rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    .card__body {
+      padding: 1.75rem 1.9rem 2.15rem;
+    }
+
+    .form-control {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 1.05rem;
+    }
+
+    label {
+      flex: 0 0 auto;
+      font-weight: 600;
+    }
+
+    select {
+      flex: 1 1 auto;
+      padding: 0.55rem 0.85rem;
+      font-size: 1rem;
+      border: 1px solid #cbd2d9;
+      border-radius: 8px;
+      appearance: none;
+      background-color: white;
+      transition: border-color 120ms ease;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(45, 123, 45, 0.2);
+    }
+
+    .helper-text {
+      margin-top: 0.85rem;
+      font-size: 0.9rem;
+      color: #52606d;
+    }
+
+    .value {
+      margin-top: 2rem;
+      font-size: 3rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .value[data-loading="true"] {
+      letter-spacing: 0.1em;
+      color: #9aa5b1;
+    }
+
+    .details {
+      margin-top: 0.75rem;
+      text-align: center;
+      color: #52606d;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .details strong {
+      color: #273444;
+    }
+
+    .error {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-top: 1.25rem;
+      font-size: 0.95rem;
+      text-align: center;
+    }
+
+    @media (max-width: 480px) {
+      .card__body {
+        padding: 1.5rem;
+      }
+
+      .form-control {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      label {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <header class="card__header">Inflation factor (NHCCI)</header>
+    <section class="card__body">
+      <div class="form-control">
+        <label for="month-select">Month:</label>
+        <select id="month-select" disabled>
+          <option>Loading data…</option>
+        </select>
+      </div>
+      <p class="helper-text">*Value reflects the quarter that contains the selected month.</p>
+      <div id="value" class="value" data-loading="true">—</div>
+      <div class="details" id="details"></div>
+      <div class="error" id="error" hidden></div>
+    </section>
+  </main>
+
+  <script>
+    const API_URL = "https://data.transportation.gov/resource/r94d-n4f9.json";
+    const monthSelect = document.getElementById("month-select");
+    const valueEl = document.getElementById("value");
+    const detailsEl = document.getElementById("details");
+    const errorEl = document.getElementById("error");
+
+    const MONTH_NAMES = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ];
+
+    const QUARTER_TO_MONTHS = {
+      1: [0, 1, 2],
+      2: [3, 4, 5],
+      3: [6, 7, 8],
+      4: [9, 10, 11]
+    };
+
+    function parseQuarterLabel(label) {
+      const match = /^\s*(\d{4})\s+Q([1-4])\s*$/.exec(label || "");
+      if (!match) {
+        return null;
+      }
+      return { year: Number(match[1]), quarter: Number(match[2]) };
+    }
+
+    function toMonthKey(year, monthIndex) {
+      return ${year}-;
+    }
+
+    function formatMonth(year, monthIndex) {
+      return ${MONTH_NAMES[monthIndex]} ;
+    }
+
+    function formatValue(raw) {
+      const numeric = Number(raw);
+      if (!Number.isFinite(numeric)) {
+        return null;
+      }
+      return numeric.toFixed(3);
+    }
+
+    async function loadData() {
+      try {
+        const response = await fetch(API_URL);
+        if (!response.ok) {
+          throw new Error(Request failed with status );
+        }
+        const records = await response.json();
+        buildUi(records);
+      } catch (err) {
+        showError(err);
+      }
+    }
+
+    function buildUi(records) {
+      const monthEntries = [];
+      const monthToRecord = new Map();
+
+      records.forEach((record) => {
+        const parsed = parseQuarterLabel(record.quarter);
+        if (!parsed) {
+          return;
+        }
+
+        const months = QUARTER_TO_MONTHS[parsed.quarter];
+        months.forEach((monthIndex) => {
+          const key = toMonthKey(parsed.year, monthIndex);
+          const label = formatMonth(parsed.year, monthIndex);
+          monthEntries.push({ key, label, record });
+          monthToRecord.set(key, record);
+        });
+      });
+
+      if (!monthEntries.length) {
+        throw new Error("No NHCCI records were returned by the data source.");
+      }
+
+      monthEntries.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+
+      monthSelect.innerHTML = "";
+      monthEntries.forEach(({ key, label }) => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = label;
+        monthSelect.append(option);
+      });
+
+      monthSelect.disabled = false;
+      monthSelect.dataset.ready = "true";
+
+      const defaultMonthKey = monthEntries[monthEntries.length - 1].key;
+      monthSelect.value = defaultMonthKey;
+      updateDisplay(defaultMonthKey, monthToRecord);
+
+      monthSelect.addEventListener("change", (event) => {
+        updateDisplay(event.target.value, monthToRecord);
+      });
+    }
+
+    function updateDisplay(monthKey, monthToRecord) {
+      valueEl.dataset.loading = "true";
+      const record = monthToRecord.get(monthKey);
+      if (!record) {
+        valueEl.textContent = "—";
+        detailsEl.textContent = "";
+        showError(new Error("No NHCCI data is available for the selected month."));
+        return;
+      }
+
+      hideError();
+
+      const parsedQuarter = parseQuarterLabel(record.quarter);
+      const [year, month] = monthKey.split("-").map(Number);
+      const monthLabel = formatMonth(year, month - 1);
+      const formattedValue =
+        formatValue(record.nhcci_seasonally_adjusted) ?? formatValue(record.nhcci);
+
+      valueEl.dataset.loading = "false";
+      valueEl.textContent = formattedValue ?? "—";
+
+      const detailLines = [];
+      if (parsedQuarter) {
+        detailLines.push(<strong>Quarter:</strong> );
+      }
+      detailLines.push(
+        <span>Source: <a href="https://data.transportation.gov/National-Transportation-Atlas-Database-NTAD-/National-Highway-Construction-Cost-Index-NHCCI/r94d-n4f9" target="_blank" rel="noreferrer noopener">U.S. DOT Open Data (r94d-n4f9)</a></span>
+      );
+
+      detailsEl.innerHTML = ${detailLines.join("<br />")};
+
+      // Update month label in select to ensure correct formatting when programmatically set.
+      const selectedOption = monthSelect.querySelector(option[value=""]);
+      if (selectedOption) {
+        selectedOption.textContent = monthLabel;
+      }
+    }
+
+    function showError(err) {
+      console.error(err);
+      errorEl.hidden = false;
+      errorEl.textContent = Unable to load NHCCI data. ;
+      monthSelect.disabled = true;
+      valueEl.textContent = "—";
+      valueEl.dataset.loading = "true";
+      detailsEl.textContent = "";
+    }
+
+    function hideError() {
+      errorEl.hidden = true;
+      errorEl.textContent = "";
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
